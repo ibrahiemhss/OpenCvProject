@@ -1,19 +1,33 @@
 package com.example.ibrahim.opencvproject;
 
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
+import android.provider.MediaStore;
+import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.SurfaceView;
+import android.view.View;
+import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase;
+import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
+import org.opencv.android.Utils;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.imgproc.Imgproc;
 
-public class MainActivity extends AppCompatActivity implements CameraBridgeViewBase.CvCameraViewListener2 {
+import java.io.IOException;
+
+public class MainActivity extends AppCompatActivity {
     static {
         if (!OpenCVLoader.initDebug()) {
             // Handle initialization error
@@ -22,85 +36,98 @@ public class MainActivity extends AppCompatActivity implements CameraBridgeViewB
         }
     }
 
-    private CameraBridgeViewBase mCameraBridgeViewBase;
-    private Mat mMat1,mMat2,mMat3;
-    private BaseLoaderCallback mBaseLoaderCallback;
+    private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
+        @Override
+        public void onManagerConnected(int status) {
+            switch (status) {
+                case LoaderCallbackInterface.SUCCESS:
+                {
+                    Log.i("OpenCV", "OpenCV loaded successfully");
+                    rgba=new Mat();
+                    grayMat=new Mat();
+
+                } break;
+                default:
+                {
+                    super.onManagerConnected(status);
+                } break;
+            }
+        }
+    };
+    Mat rgba;
+    Mat grayMat;
+    private Button mBtnGray;
+    private ImageView mImageView;
+    private Bitmap mGrayBitmap,mImagBitmap;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        mCameraBridgeViewBase=findViewById(R.id.myCameView);
-        mCameraBridgeViewBase.setVisibility(SurfaceView.VISIBLE);
-        mCameraBridgeViewBase.setCvCameraViewListener(this);
-        mBaseLoaderCallback = new BaseLoaderCallback(this) {
+        OpenCVLoader.initDebug();
+
+
+        mImageView=findViewById(R.id.imgGallary);
+        findViewById(R.id.btnGallary).setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onManagerConnected(int status) {
-                switch (status) {
-                    case BaseLoaderCallback.SUCCESS:
-                        if (mCameraBridgeViewBase != null) {
-                               mCameraBridgeViewBase.enableView();
-                        }
-//
-                        break;
-
-                    default:
-                        super.onManagerConnected(status);
-                        break;
-
-                }
-
+            public void onClick(View view) {
+                Intent intent=new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+                startActivityForResult(intent,100);
             }
-        };
-    }
+        });
+        findViewById(R.id.btnGray).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                convertToGray(view);
+            }
+        });
 
-    @Override
-    public void onCameraViewStarted(int width, int height) {
-        mMat1=new Mat(width,height, CvType.CV_8UC4);
-        mMat2=new Mat(width,height,CvType.CV_8UC4);
-        mMat3=new Mat(width,height,CvType.CV_8UC4);
-    }
-
-    @Override
-    public void onCameraViewStopped() {
-        mMat1.release();
 
     }
 
-    @Override
-    public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
-        mMat1=inputFrame.rgba();
-
-        Core.transpose(mMat1,mMat2);
-        Core.flip(mMat1,mMat2,1);
-
-        return mMat1;
-    }
 
     @Override
-    protected void onPause() {
-        super.onPause();
-        if (mCameraBridgeViewBase != null) {
-            mCameraBridgeViewBase.disableView();
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if(requestCode==100 && resultCode==RESULT_OK && data!=null){
+
+            Uri imgUri=data.getData();
+            try {
+                mImagBitmap=MediaStore.Images.Media.getBitmap(this.getContentResolver(),imgUri);
+
+            }catch (IOException e){
+                e.printStackTrace();
+            }
+            mImageView.setImageBitmap(mImagBitmap);
         }
+    }
+    public void convertToGray(View v){
+         rgba=new Mat();
+         grayMat=new Mat();
+        BitmapFactory.Options o=new BitmapFactory.Options();
+        o.inDither=false;
+        o.inSampleSize=4;
+
+        int width=mImagBitmap.getWidth();
+        int height=mImagBitmap.getHeight();
+        mGrayBitmap=Bitmap.createBitmap(width,height, Bitmap.Config.RGB_565);
+        Utils.bitmapToMat(mImagBitmap,rgba);
+        Imgproc.cvtColor(rgba,grayMat,Imgproc.COLOR_RGB2GRAY);
+        Utils.matToBitmap(grayMat,mGrayBitmap);
+        mImageView.setImageBitmap(mGrayBitmap);
+
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (!OpenCVLoader.initDebug()){
-            Toast.makeText(this,"problem in openCv",Toast.LENGTH_LONG).show();
-            OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_4_0,this, mBaseLoaderCallback);
 
-        }else {
-            mBaseLoaderCallback.onManagerConnected(BaseLoaderCallback.SUCCESS);
-        }
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (mCameraBridgeViewBase != null) {
-            mCameraBridgeViewBase.disableView();
+        super.onResume();
+        if (!OpenCVLoader.initDebug()) {
+            Log.d("OpenCV", "Internal OpenCV library not found. Using OpenCV Manager for initialization");
+            OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_4_0, this, mLoaderCallback);
+        } else {
+            Log.d("OpenCV", "OpenCV library found inside package. Using it!");
+            mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
         }
     }
 }
