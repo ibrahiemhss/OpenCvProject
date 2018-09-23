@@ -4,10 +4,9 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent" >
 
-    <Button
-        android:id="@+id/btn_cameracalibration"
-        android:layout_width="wrap_content"
-        android:text="cameracalibration"
-        android:layout_height="wrap_content" />
+    <org.opencv.android.JavaCameraView
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:id="@+id/camera_calibration_java_surface_view" />
 
 </LinearLayout>
